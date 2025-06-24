@@ -1,65 +1,73 @@
-import streamlit as st
-from io import BytesIO
-import base64
+# 🧠 QUIZ
+elif menu == "🧠 Quiz":
+    st.title("🧠 Organic Chemistry Quiz")
 
-# ====================== LOTTIE ANIMATION SETUP ======================
-# Safe import with error handling
-LOTTIE_ENABLED = True
-try:
-    from streamlit_lottie import st_lottie
-except ImportError:
-    LOTTIE_ENABLED = False
-    st.warning(
-        "Lottie animations disabled - 'streamlit-lottie' package not installed.\n"
-        "Install with: pip install streamlit-lottie"
-    )
+    questions = [
+        {"q":"General formula for alkanes?", "a":"CₙH₂ₙ₊₂", "opts":["CₙH₂ₙ", "CₙH₂ₙ₊₂", "CₙH₂ₙ₋₂"]},
+        {"q":"Functional group in ethanol?", "a":"Alcohol", "opts":["Alkane", "Alcohol", "Ester"]},
+        {"q":"Triple bond compound?", "a":"Alkyne", "opts":["Alkane", "Alkene", "Alkyne"]},
+        {"q":"Suffix for aldehyde?", "a":"-al", "opts":["-ol", "-al", "-one"]},
+        {"q":"Which is a carboxylic acid?", "a":"CH3COOH", "opts":["CH3OH", "CH3CH3", "CH3COOH"]},
+    ]
 
-def load_lottie(url):
-    """Safe Lottie animation loader with fallback"""
-    if not LOTTIE_ENABLED:
-        return None
+    # Initialize quiz state
+    if "quiz_start_time" not in st.session_state:
+        st.session_state.quiz_start_time = None
+        st.session_state.quiz_score = 0
+        st.session_state.user_answers = {}
+
+    # Start quiz button
+    if not st.session_state.quiz_start_time:
+        if st.button("🚀 Start Timed Quiz"):
+            st.session_state.quiz_start_time = time.time()
+            st.session_state.quiz_score = 0
+            st.session_state.user_answers = {}
+            st.experimental_rerun()
+    else:
+        elapsed = time.time() - st.session_state.quiz_start_time
+        remaining = max(60 - int(elapsed), 0)
+        st.info(f"⏱ Time remaining: {remaining} seconds")
+
+        if remaining <= 0:
+            st.warning("⏰ Time's up!")
+            st.session_state.quiz_start_time = None
+
+    # Display questions
+    for i, q in enumerate(questions):
+        st.subheader(f"{i+1}. {q['q']}")
         
-    try:
-        import requests
-        r = requests.get(url)
-        return r.json() if r.status_code == 200 else None
-    except Exception as e:
-        st.warning(f"Couldn't load Lottie animation: {str(e)}")
-        return None
+        # Use session state to preserve answers
+        if i not in st.session_state.user_answers:
+            st.session_state.user_answers[i] = None
+            
+        user_answer = st.radio(
+            "Choose one:", 
+            q["opts"], 
+            key=f"quiz_{i}",
+            index=None if i not in st.session_state.user_answers else q["opts"].index(st.session_state.user_answers[i]) if st.session_state.user_answers[i] else None
+        )
+        
+        if user_answer:
+            st.session_state.user_answers[i] = user_answer
+            
+            if user_answer == q["a"]:
+                st.success("✅ Correct!")
+                if LOTTIE_ENABLED and correct_anim:
+                    st_lottie(correct_anim, height=150)
+                play_sound("correct.mp3")
+            else:
+                st.error(f"❌ Wrong. Correct answer: {q['a']}")
+                if LOTTIE_ENABLED and wrong_anim:
+                    st_lottie(wrong_anim, height=150)
+                play_sound("wrong.mp3")
 
-# Initialize animations with fallback
-correct_anim = load_lottie("https://assets4.lottiefiles.com/packages/lf20_jbrw3hcz.json") if LOTTIE_ENABLED else None
-wrong_anim = load_lottie("https://assets9.lottiefiles.com/packages/lf20_jv60fnyj.json") if LOTTIE_ENABLED else None
-
-def show_lottie_animation(animation, height=150):
-    """Safe animation display with fallback"""
-    if LOTTIE_ENABLED and animation:
-        st_lottie(animation, height=height)
-    return None
-# ====================== END LOTTIE SETUP ======================
-
-# Rest of your imports...
-def play_sound(file):
-    try:
-        with open(file, "rb") as f:
-            b64 = base64.b64encode(f.read()).decode()
-        st.markdown(f"""
-        <audio autoplay>
-            <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
-        </audio>
-        """, unsafe_allow_html=True)
-    except Exception as e:
-        st.warning(f"Couldn't play sound: {str(e)}")
-
-# ... [rest of your existing code] ...
-
-# In your quiz section, replace animation calls with:
-if user_answer == q["a"]:
-    st.success("✅ Correct!")
-    st.session_state["quiz_score"] += 1
-    show_lottie_animation(correct_anim)
-    play_sound("correct.mp3")
-else:
-    st.error(f"❌ Wrong. Correct answer: {q['a']}")
-    show_lottie_animation(wrong_anim)
-    play_sound("wrong.mp3")
+    # Calculate and display score
+    if st.session_state.quiz_start_time and remaining > 0:
+        current_score = sum(
+            1 for i, q in enumerate(questions) 
+            if st.session_state.user_answers.get(i) == q["a"]
+        )
+        st.session_state.quiz_score = current_score
+        st.markdown(f"### 🏁 Current Score: **{current_score}/{len(questions)}**")
+    else:
+        st.markdown(f"### 🏁 Final Score: **{st.session_state.quiz_score}/{len(questions)}**")
