@@ -28,6 +28,13 @@ def load_lottie(url):
 correct_anim = load_lottie("https://assets4.lottiefiles.com/packages/lf20_jbrw3hcz.json")
 wrong_anim = load_lottie("https://assets9.lottiefiles.com/packages/lf20_jv60fnyj.json")
 
+# Initialize session state
+if "visited" not in st.session_state:
+    st.session_state["visited"] = set()
+if "achievements" not in st.session_state:
+    st.session_state["achievements"] = set()
+if "quiz_score" not in st.session_state:
+    st.session_state["quiz_score"] = 0
 
 # App setup
 st.set_page_config(page_title="Organic Chemistry Tutor", page_icon="🧪", layout="wide")
@@ -73,9 +80,12 @@ menu = st.sidebar.selectbox("Choose a topic", [
     "🧠 Quiz",
     "📩 Feedback", 
     "📅 Daily Challenge",   
-    "📘 SS2 Glossary"       
+    "📘 SS2 Glossary",
     "🎮 Name It Fast"
 ])
+
+# Track visited sections
+st.session_state["visited"].add(menu)
 
 # 🏠 HOME PAGE
 if menu == "🏠 Home":
@@ -193,11 +203,11 @@ elif menu == "🧠 Quiz":
         {"q":"Which is a carboxylic acid?", "a":"CH3COOH", "opts":["CH3OH", "CH3CH3", "CH3COOH"]},
     ]
 
-
     import time
     if "quiz_start_time" not in st.session_state:
         if st.button("🚀 Start Timed Quiz"):
             st.session_state["quiz_start_time"] = time.time()
+            st.session_state["quiz_score"] = 0
             st.experimental_rerun()
 
     if "quiz_start_time" in st.session_state:
@@ -206,29 +216,26 @@ elif menu == "🧠 Quiz":
         if remaining > 0:
             st.info(f"⏱ Time remaining: {remaining} seconds")
 
-    score = 0
     for i, q in enumerate(questions):
         st.subheader(f"{i+1}. {q['q']}")
-        user_answer = st.radio("Choose one:", q["opts"], key=i, index=None)
+        user_answer = st.radio("Choose one:", q["opts"], key=f"quiz_{i}", index=None)
         if user_answer:
-            
-                if user_answer == q["a"]:
-                    st.success("✅ Correct!")
-                    st.session_state["score"] += 1
-                    st_lottie(correct_anim, height=150)
-                    play_sound("correct.mp3")
-                else:
-                    st.error(f"❌ Wrong. Correct answer: {q['a']}")
-                    st_lottie(wrong_anim, height=150)
-                    play_sound("wrong.mp3")
+            if user_answer == q["a"]:
+                st.success("✅ Correct!")
+                st.session_state["quiz_score"] += 1
+                st_lottie(correct_anim, height=150)
+                play_sound("correct.mp3")
+            else:
+                st.error(f"❌ Wrong. Correct answer: {q['a']}")
+                st_lottie(wrong_anim, height=150)
+                play_sound("wrong.mp3")
 
-
-    st.markdown(f"### 🏁 Final Score: **{score}/{len(questions)}**")
+    st.markdown(f"### 🏁 Final Score: **{st.session_state['quiz_score']}/{len(questions)}**")
 
 # 📩 FEEDBACK
 elif menu == "📩 Feedback":
     st.title("📩 Feedback & Suggestions")
-    st.markdown("We’d love to hear from you. Please fill out this short form:")
+    st.markdown("We'd love to hear from you. Please fill out this short form:")
     st.components.v1.iframe(
         "https://docs.google.com/forms/d/e/1FAIpQLSdZrs0rEmICl64s8OebmvbB4T-6qf4V8O4T2vKo2CFqFi6sjw/viewform?embedded=true",
         height=700
@@ -239,7 +246,6 @@ elif menu == "📅 Daily Challenge":
     import datetime
     today = datetime.date.today()
     seed = today.toordinal()
-    import random
     random.seed(seed)
 
     daily_questions = [
@@ -251,10 +257,14 @@ elif menu == "📅 Daily Challenge":
     ]
     challenge = random.choice(daily_questions)
     st.subheader(challenge["q"])
-    choice = st.radio("Choose your answer:", challenge["opts"])
+    choice = st.radio("Choose your answer:", challenge["opts"], key="daily_challenge")
     if st.button("Submit Answer"):
         if choice == challenge["a"]:
             st.success("✅ Correct!")
+            if "Daily_Challenge_Score" not in st.session_state:
+                st.session_state["Daily_Challenge_Score"] = 1
+            else:
+                st.session_state["Daily_Challenge_Score"] += 1
         else:
             st.error(f"❌ Incorrect. The correct answer is: {challenge['a']}")
 
@@ -275,22 +285,92 @@ elif menu == "📘 SS2 Glossary":
 
     search = st.text_input("Search glossary:")
     for term, definition in terms.items():
-        if search.lower() in term.lower():
+        if not search or search.lower() in term.lower():
             with st.expander(term):
                 st.write(definition)
 
-# ------------------ ACHIEVEMENT BADGES ------------------
-if "achievements" not in st.session_state:
-    st.session_state["achievements"] = set()
+elif menu == "🎮 Name It Fast":
+    st.title("🎮 Name It Fast Challenge!")
+    st.markdown("You have 60 seconds to name as many compounds as possible. Ready?")
 
-if "🧠 Quiz" in st.session_state["visited"]:
+    import time
+
+    compounds = {
+        "CH4": "Methane",
+        "CH3CH3": "Ethane",
+        "CH3CH2OH": "Ethanol",
+        "CH2=CH2": "Ethene",
+        "CH3COOH": "Ethanoic Acid",
+        "CH3CHO": "Ethanal",
+        "CH3CH=CH2": "Propene",
+        "CH≡CH": "Ethyne",
+        "CH3COCH3": "Propanone"
+    }
+
+    if "game_started" not in st.session_state:
+        st.session_state["game_started"] = False
+        st.session_state["game_start_time"] = 0
+        st.session_state["game_score"] = 0
+        st.session_state["current_formula"] = ""
+
+    def reset_game():
+        st.session_state["game_started"] = True
+        st.session_state["game_start_time"] = time.time()
+        st.session_state["game_score"] = 0
+        st.session_state["current_formula"] = random.choice(list(compounds.keys()))
+
+    if not st.session_state["game_started"]:
+        if st.button("🚀 Start Game"):
+            reset_game()
+    else:
+        elapsed = time.time() - st.session_state["game_start_time"]
+        remaining = 60 - int(elapsed)
+
+        if remaining > 0:
+            st.markdown(f"⏱️ Time left: **{remaining}s**")
+            st.markdown(f"🧪 Name this: `{st.session_state['current_formula']}`")
+
+            answer = st.text_input("Enter name:", key=f"name_{elapsed}")
+
+            if answer:
+                correct_name = compounds[st.session_state["current_formula"]].lower()
+                if answer.strip().lower() == correct_name:
+                    st.success("✅ Correct!")
+                    st.session_state["game_score"] += 1
+                else:
+                    st.error(f"❌ Wrong. Answer: {correct_name}")
+                st.session_state["current_formula"] = random.choice(list(compounds.keys()))
+        else:
+            st.markdown("⏰ **Time's up!**")
+            st.success(f"🎉 Final Score: **{st.session_state['game_score']}**")
+            st.session_state["game_started"] = False
+
+# Achievements tracking
+if "🧠 Quiz" in st.session_state["visited"] and st.session_state["quiz_score"] >= 3:
     st.session_state["achievements"].add("🧠 Quiz Master")
 
-if len(st.session_state["visited"]) >= 7:
+if len(st.session_state["visited"]) >= 5:
     st.session_state["achievements"].add("🧭 Explorer")
 
-if menu == "🏠 Home" and "Daily_Challenge_Score" in st.session_state and st.session_state["Daily_Challenge_Score"]:
+if "Daily_Challenge_Score" in st.session_state and st.session_state["Daily_Challenge_Score"] >= 1:
     st.session_state["achievements"].add("🔥 Daily Winner")
+
+# 🎁 Daily Streak Badge
+import datetime
+today = datetime.date.today()
+last_day = st.session_state.get("last_visit")
+streak = st.session_state.get("streak", 0)
+
+if last_day != today:
+    if last_day and last_day == today - datetime.timedelta(days=1):
+        streak += 1
+    else:
+        streak = 1
+    st.session_state["streak"] = streak
+    st.session_state["last_visit"] = today
+
+if streak >= 3:
+    st.session_state["achievements"].add("🔥 3-Day Streaker")
 
 with st.sidebar.expander("🏅 Achievements"):
     if st.session_state["achievements"]:
@@ -298,6 +378,8 @@ with st.sidebar.expander("🏅 Achievements"):
             st.success(f"🏅 {badge}")
     else:
         st.info("No achievements yet. Explore more sections!")
+    
+    st.markdown(f"📅 **Streak:** {streak} day(s)")
 
 # ------------------ ANIMATED STYLES ------------------
 st.markdown("""
@@ -319,78 +401,3 @@ div[data-testid="stExpander"] > summary:hover {
 }
 </style>
 """, unsafe_allow_html=True)
-elif menu == "🎮 Name It Fast":
-    st.title("🎮 Name It Fast Challenge!")
-    st.markdown("You have 60 seconds to name as many compounds as possible. Ready?")
-
-    import time
-    import random
-
-    compounds = {
-        "CH4": "Methane",
-        "CH3CH3": "Ethane",
-        "CH3CH2OH": "Ethanol",
-        "CH2=CH2": "Ethene",
-        "CH3COOH": "Ethanoic Acid",
-        "CH3CHO": "Ethanal",
-        "CH3CH=CH2": "Propene",
-        "CH≡CH": "Ethyne",
-        "CH3COCH3": "Propanone"
-    }
-
-    if "game_started" not in st.session_state:
-        st.session_state["game_started"] = False
-        st.session_state["start_time"] = 0
-        st.session_state["score"] = 0
-        st.session_state["current_formula"] = ""
-
-    def reset_game():
-        st.session_state["game_started"] = True
-        st.session_state["start_time"] = time.time()
-        st.session_state["score"] = 0
-        st.session_state["current_formula"] = random.choice(list(compounds.keys()))
-
-    if not st.session_state["game_started"]:
-        if st.button("🚀 Start Game"):
-            reset_game()
-    else:
-        elapsed = time.time() - st.session_state["start_time"]
-        remaining = 60 - int(elapsed)
-
-        if remaining > 0:
-            st.markdown(f"⏱️ Time left: **{remaining}s**")
-            st.markdown(f"🧪 Name this: `{st.session_state['current_formula']}`")
-
-            answer = st.text_input("Enter name:", key=f"name_{elapsed}")
-
-            if answer:
-                correct_name = compounds[st.session_state["current_formula"]].lower()
-                if answer.strip().lower() == correct_name:
-                    st.success("✅ Correct!")
-                    st.session_state["score"] += 1
-                else:
-                    st.error(f"❌ Wrong. Answer: {correct_name}")
-                st.session_state["current_formula"] = random.choice(list(compounds.keys()))
-        else:
-            st.markdown("⏰ **Time's up!**")
-            st.success(f"🎉 Final Score: **{st.session_state['score']}**")
-            st.session_state["game_started"] = False
-
-# 🎁 Daily Streak Badge
-import datetime
-today = datetime.date.today()
-last_day = st.session_state.get("last_visit")
-streak = st.session_state.get("streak", 0)
-
-if last_day != today:
-    if last_day == today - datetime.timedelta(days=1):
-        streak += 1
-    else:
-        streak = 1
-    st.session_state["streak"] = streak
-    st.session_state["last_visit"] = today
-
-if streak >= 3:
-    st.session_state["achievements"].add("🔥 3-Day Streaker")
-
-st.sidebar.markdown(f"📅 **Streak:** {streak} day(s)")
